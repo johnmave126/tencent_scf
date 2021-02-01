@@ -298,7 +298,7 @@ pub struct Event {
     #[serde(rename = "headerParameters")]
     header_parameters: ext::HeaderParameters,
 
-    body: String,
+    body: Option<String>,
 }
 
 impl Event {
@@ -327,7 +327,7 @@ impl Event {
             extensions.insert(self.query_string_parameters);
             extensions.insert(self.header_parameters);
         }
-        Ok((req, self.body))
+        Ok((req, self.body.unwrap_or_default()))
     }
 }
 
