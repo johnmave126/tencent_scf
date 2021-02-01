@@ -50,4 +50,4 @@ json = ["serde", "serde_json", "tencent_scf_derive"]
 [package.metadata.docs.rs]
 all-features = true
 targets = ["x86_64-unknown-linux-musl"]
-rustdoc-args = ["--cfg", "doc_cfg"]
+rustdoc-args = ["--cfg", "docsrs"]
