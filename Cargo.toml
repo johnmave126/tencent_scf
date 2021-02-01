@@ -1,6 +1,6 @@
 [package]
 name = "tencent_scf"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Youmu <johnmave126@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "Custom runtime for Tencent cloud serverless compute function"
@@ -47,7 +47,7 @@ builtin-common = ["json", "serde/derive"]
 json = ["serde", "serde_json", "tencent_scf_derive"]
 
 
-[package.metadata."docs.rs"]
+[package.metadata.docs.rs]
 all-features = true
 targets = ["x86_64-unknown-linux-musl"]
-tdoc-args = ["--cfg", "doc_cfg"]
+rustdoc-args = ["--cfg", "doc_cfg"]
