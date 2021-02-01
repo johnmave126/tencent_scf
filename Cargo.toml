@@ -1,0 +1,53 @@
+[package]
+name = "tencent_scf"
+version = "0.1.0"
+authors = ["Youmu <johnmave126@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "Custom runtime for Tencent cloud serverless compute function"
+repository = "https://github.com/johnmave126/tencent_scf"
+documentation = "https://docs.rs/tencent_scf"
+categories = ["api-bindings"]
+keywords = ["runtime", "lambda", "tencent", "scf"]
+readme = "README.md"
+include = [
+    "/Cargo.toml",
+    "/LICENSE-APACHE",
+    "/LICENSE-MIT",
+    "/README.md",
+    "/src/**",
+]
+edition = "2018"
+
+
+[dependencies]
+base64 = { version = "0.13.0", optional = true }
+tencent_scf_derive = { version = "0.1.0", optional = true, path = "derive" }
+http = { version = "0.2.3", optional = true }
+serde = { version = "1.0.123", optional = true }
+serde_json = { version = "1.0.61", optional = true }
+thiserror = { version = "1.0.23", optional = true }
+ureq = "2.0.1"
+
+
+[dev-dependencies]
+serde = { version = "1.0.123", features = ["derive"] }
+serde_json = "1.0.61"
+
+
+[features]
+default = ["json"]
+
+# enable built-in api gateway trigger support
+builtin-api-gateway = ["builtin-common", "base64", "http", "thiserror"]
+
+# enable common built-in trigger support dependencies
+builtin-common = ["json", "serde/derive"]
+
+# enables auto serialize/deserialize of events and response
+json = ["serde", "serde_json", "tencent_scf_derive"]
+
+
+[package.metadata."docs.rs"]
+all-features = true
+targets = ["x86_64-unknown-linux-musl"]
+tdoc-args = ["--cfg", "doc_cfg"]

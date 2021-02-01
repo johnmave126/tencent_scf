@@ -1,0 +1,16 @@
+[package]
+name = "tencent_scf_derive"
+version = "0.1.0"
+authors = ["Youmu <johnmave126@gmail.com>"]
+edition = "2018"
+license = "MIT OR Apache-2.0"
+description = "Derive helper for crate tencent_scf"
+repository = "https://github.com/johnmave126/tencent_scf"
+documentation = "https://docs.rs/tencent_scf_derive"
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = "1.0.8"
+syn = "1.0.60"
