@@ -3,7 +3,7 @@
 [![Docs][docs-image]][docs-link]
 ![Apache2/MIT licensed][license-image]
 
-> :warning **DISCLAIMER**: The author is **NOT** affiliated with Tencent and the project is **NOT** endorsed by Tencent. This project was developed solely out of personal use.
+> :warning: **DISCLAIMER**: The author is **NOT** affiliated with Tencent and the project is **NOT** endorsed by Tencent. This project was developed solely out of personal use.
 
 ## Motivation
 There is a well-known crate [lambda_runtime] that provides a runtime for rust as AWS Lambda. Recently I need to run some service on Tencent cloud and it is also well-known that Tencent Serverless Compute Function is simply a replica of AWS Lambda with a worse name. So I created this library with sligtly lighter dependencies than `lambda_runtime` and slightly different design decisions. It shouldn't be very hard to adapt an AWS Lambda to a Tencent Serverless Compute Function although concrete APIs are a little bit different.
