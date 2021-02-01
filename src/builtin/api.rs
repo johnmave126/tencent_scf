@@ -182,8 +182,9 @@ pub mod ext {
         pub path: String,
         #[serde(rename = "httpMethod")]
         pub method: String,
-        #[serde(rename = "requestId")]
-        pub request_id: String,
+        // TODO: The actual payload doesn't contain `requestId`. File a bug.
+        //#[serde(rename = "requestId")]
+        //pub request_id: String,
         pub identity: super::Dict,
         #[serde(rename = "sourceIp")]
         pub source_ip: String,
