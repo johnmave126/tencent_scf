@@ -333,6 +333,15 @@ impl Event {
     }
 }
 
+/// Container for a header value of the response
+#[doc(hidden)]
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
+pub enum WebResponseHeaderValue {
+    Single(String),
+    Multi(Vec<String>),
+}
+
 /// Raw structure for a response, to be sent to the server
 ///
 /// Structure is defined in [API Gateway Response Structure].
@@ -345,7 +354,7 @@ pub struct WebResponse {
     base64: bool,
     #[serde(rename = "statusCode")]
     status: u16,
-    headers: HashMap<String, Vec<String>>,
+    headers: HashMap<String, WebResponseHeaderValue>,
     body: String,
 }
 
@@ -420,7 +429,7 @@ pub enum ResponseEncodeError {
 /// Break down an outgoing response into status code, map of headers, and body
 fn break_response<T>(
     response: Response<T>,
-) -> Result<(u16, HashMap<String, Vec<String>>, T), ResponseEncodeError> {
+) -> Result<(u16, HashMap<String, WebResponseHeaderValue>, T), ResponseEncodeError> {
     let (mut parts, body) = response.into_parts();
     let mut headers = HashMap::new();
     let mut header_iter = parts.headers.drain().peekable();
@@ -428,19 +437,37 @@ fn break_response<T>(
         // It is guaranteed here that the header part is not None
         // see `http::header::HeaderMap::drain`
         let header = header.unwrap();
-        // Consume all the following item with `None` header
-        let values = header_iter
-            .peeking_take_while(|(header, _)| header.is_none())
-            .map(|(_, value)| value)
-            .chain(std::iter::once(value))
-            .map(|value| {
-                Ok(value
-                    .to_str()
-                    .map_err(|_| ResponseEncodeError::InvalidHeaderValue(header.to_string()))?
-                    .to_string())
-            })
-            .collect::<Result<Vec<String>, ResponseEncodeError>>()?;
-        headers.insert(header.to_string(), values);
+        match header_iter.peek() {
+            Some(&(None, _)) => {
+                // Consume all the following item with `None` header
+                let values = std::iter::once(value)
+                    .chain(
+                        header_iter
+                            .peeking_take_while(|(header, _)| header.is_none())
+                            .map(|(_, value)| value),
+                    )
+                    .map(|value| {
+                        Ok(value
+                            .to_str()
+                            .map_err(|_| {
+                                ResponseEncodeError::InvalidHeaderValue(header.to_string())
+                            })?
+                            .to_string())
+                    })
+                    .collect::<Result<Vec<String>, ResponseEncodeError>>()?;
+                headers.insert(header.to_string(), WebResponseHeaderValue::Multi(values));
+            }
+            _ => {
+                // Single valued header
+                let value = WebResponseHeaderValue::Single(
+                    value
+                        .to_str()
+                        .map_err(|_| ResponseEncodeError::InvalidHeaderValue(header.to_string()))?
+                        .to_string(),
+                );
+                headers.insert(header.to_string(), value);
+            }
+        }
     }
 
     Ok((parts.status.as_u16(), headers, body))
