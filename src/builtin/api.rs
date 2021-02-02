@@ -130,6 +130,7 @@ use http::{
     header::{HeaderName, HeaderValue},
     request::Builder as RequestBuilder,
 };
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::convert::{FromReader, IntoBytes};
@@ -420,17 +421,16 @@ pub enum ResponseEncodeError {
 fn break_response<T>(
     response: Response<T>,
 ) -> Result<(u16, HashMap<String, Vec<String>>, T), ResponseEncodeError> {
-    let (parts, body) = response.into_parts();
+    let (mut parts, body) = response.into_parts();
     let mut headers = HashMap::new();
-    let mut header_iter = parts.headers.into_iter();
+    let mut header_iter = parts.headers.drain().peekable();
     while let Some((header, value)) = header_iter.next() {
         // It is guaranteed here that the header part is not None
-        // see `http::header::HeaderMap::into_iter`
+        // see `http::header::HeaderMap::drain`
         let header = header.unwrap();
         // Consume all the following item with `None` header
         let values = header_iter
-            .by_ref()
-            .take_while(|(header, _)| header.is_none())
+            .peeking_take_while(|(header, _)| header.is_none())
             .map(|(_, value)| value)
             .chain(std::iter::once(value))
             .map(|value| {
