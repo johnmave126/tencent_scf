@@ -1,6 +1,6 @@
 [package]
 name = "tencent_scf"
-version = "0.1.2"
+version = "0.1.3"
 authors = ["Youmu <johnmave126@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "Custom runtime for Tencent cloud serverless compute function"
