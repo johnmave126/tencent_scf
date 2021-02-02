@@ -12,8 +12,8 @@
 //! function to be [`RefUnwindSafe`]. Most pure function should satisfy this.
 //! * [`start_uncatched`] allows the serverless compute function to panic the whole process and relies on
 //! the cloud to tear down the executor and restart. The downside of this is when a query causes
-//! panic on the function, the cloud typically waits until timeout before acknowledging the
-//! failure. Sometimes this is necessary to reference `!RefUnwindSafe` types. Connection pool,
+//! panic on the function, the runtime will be torn down. So the intialization has to be
+//! performed after each panic. Sometimes this is necessary to reference `!RefUnwindSafe` types. Connection pool,
 //! for example, usually is not unwind-safe.
 //!
 //! # Built-in Events
@@ -597,8 +597,42 @@ impl Runtime {
         ConvertEventError: Display,
         ConvertResponseError: Display,
     {
-        f.call(event, context)
-            .map_err(|err| format!("function failed with error: {}", err))
+        let invoke_result = {
+            // Replace the panic handler to redirect panic messages.
+            // This is a RAII construct so the panic handler should be reinstated after the
+            // end of this block
+            let panic_guard = helper::PanicGuard::new();
+            let invoke_result = panic::catch_unwind({
+                // We maintain the variant that `f` here is in a consistent state.
+                // We achieve this by panicking the runtime if the execution of the function
+                // panics, hence every time this function properly exits, `f` must be in a
+                // consistent state
+                let scf = panic::AssertUnwindSafe(&f);
+                // The event was deserialized from a byte stream and *should not* affect the
+                // outer environment had a panic happens, but we cannot prevent crazy
+                // implementater for `convert::FromReader` where they somehow introduce
+                // `!UnwindSafe` types. Implementers are warned in the documentation for
+                // `convert::FromReader` so for ergonomics we assert unwind-safety for
+                // event
+                let event = panic::AssertUnwindSafe(event);
+                move || scf.0.call(event.0, context)
+            })
+            .map_err(|_| panic_guard.get_panic());
+            invoke_result
+        };
+        match invoke_result {
+            // The execution succeeded
+            Ok(Ok(response)) => Ok(response),
+            Ok(Err(err)) => {
+                // There are errors during the execution
+                Err(format!("function failed with error: {}", err))
+            }
+            Err(message) => {
+                // panic, forward the panic to the upstream cloud and then panic
+                self.send_error_message(&message);
+                panic!(message);
+            }
+        }
     }
 
     /// Send the execution result to the upstream cloud
