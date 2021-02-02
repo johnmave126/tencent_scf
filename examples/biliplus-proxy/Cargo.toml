@@ -1,0 +1,15 @@
+[package]
+name = "biliplus-proxy"
+version = "0.1.0"
+authors = ["Youmu <johnmave126@gmail.com>"]
+edition = "2018"
+autobins = false
+
+[[bin]]
+name = "bootstrap"
+path = "src/main.rs"
+
+[dependencies]
+ureq = "2.0.1"
+tencent_scf = { version = "0.1.2", features = ["builtin-api-gateway"], path = "../tencent_scf" }
+thiserror = "1.0.23"
