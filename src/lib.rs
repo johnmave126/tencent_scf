@@ -374,21 +374,8 @@ where
     ConvertEventError: Display,
     ConvertResponseError: Display,
 {
-    let rt = Runtime::new();
-
-    // Notify upstream cloud that we are ready
-    rt.notify_ready();
-
-    // Main loop
-    loop {
-        // Fetch next event
-        if let Some((event, context)) = rt.next() {
-            // The response is well-formed
-            let result = rt.invoke(&f, event, context);
-            // Send the result to the cloud
-            rt.send_result(result);
-        }
-    }
+    // panic is fine, the function is still in consistent state, so we continue the runtime
+    Runtime::new().run_with(f, |_, result| result.unwrap_or_else(Err));
 }
 
 /// Start the runtime with the given serverless compute function without catching panics.
@@ -436,21 +423,13 @@ pub fn start_uncatched<Event, Response, Error, ConvertEventError, ConvertRespons
     ConvertEventError: Display,
     ConvertResponseError: Display,
 {
-    let rt = Runtime::new();
-
-    // Notify upstream cloud that we are ready
-    rt.notify_ready();
-
-    // Main loop
-    loop {
-        // Fetch next event
-        if let Some((event, context)) = rt.next() {
-            // The response is well-formed
-            let result = rt.invoke_uncatched(&f, event, context);
-            // Send the result to the cloud
-            rt.send_result(result);
-        }
-    }
+    Runtime::new().run_with(f, |rt, result| {
+        result.unwrap_or_else(|panic_message| {
+            // The execution panicked, we can no longer continue
+            rt.send_error_message(&panic_message);
+            panic!(panic_message)
+        })
+    });
 }
 
 /// A struct that contains information for a runtime
@@ -500,6 +479,46 @@ impl Runtime {
         }
     }
 
+    /// Run the runtime
+    ///
+    /// A closure is passed on how to handle the result of an execution. The caller depends on this
+    /// to handle panic differently
+    fn run_with<
+        Event,
+        Response,
+        Error,
+        ConvertEventError,
+        ConvertResponseError,
+        Function,
+        Handler,
+    >(
+        self,
+        f: Function,
+        result_handler: Handler,
+    ) where
+        Function: ServerlessComputeFunction<Event = Event, Response = Response, Error = Error>,
+        Event: convert::FromReader<Error = ConvertEventError>,
+        Response: convert::IntoBytes<Error = ConvertResponseError>,
+        Error: Display,
+        ConvertEventError: Display,
+        ConvertResponseError: Display,
+        Handler: Fn(&Runtime, Result<Result<Response, String>, String>) -> Result<Response, String>,
+    {
+        // Notify upstream cloud that we are ready
+        self.notify_ready();
+
+        // Main loop
+        loop {
+            // Fetch next event
+            if let Some((event, context)) = self.next() {
+                // The response is well-formed
+                let result = result_handler(&self, self.invoke(&f, event, context));
+                // Send the result to the cloud
+                self.send_result(result);
+            }
+        }
+    }
+
     /// Notify the upstream cloud that the runtime is ready
     #[inline]
     fn notify_ready(&self) {
@@ -533,62 +552,19 @@ impl Runtime {
         }
     }
 
-    /// Invoke a scf with panic catching
+    /// Invoke an scf.
+    ///
+    /// # Unwind Safety
+    /// The function `f` is **not** required to be `RefUnwindSafe`. We maintain the variant that
+    /// `f` is always in consistent state by exposing panic error to the caller. If the caller
+    /// receives a `!RefUnwindSafe` function, it should panic the runtime if panic is detected to
+    /// avoid `f` being used again.
     fn invoke<Event, Response, Error, ConvertEventError, ConvertResponseError, Function>(
         &self,
         f: &Function,
         event: Event,
         context: Context,
-    ) -> Result<Response, String>
-    where
-        Function: ServerlessComputeFunction<Event = Event, Response = Response, Error = Error>
-            + RefUnwindSafe,
-        Event: convert::FromReader<Error = ConvertEventError>,
-        Response: convert::IntoBytes<Error = ConvertResponseError>,
-        Error: Display,
-        ConvertEventError: Display,
-        ConvertResponseError: Display,
-    {
-        let invoke_result = {
-            // Replace the panic handler to redirect panic messages.
-            // This is a RAII construct so the panic handler should be reinstated after the
-            // end of this block
-            let panic_guard = helper::PanicGuard::new();
-            let invoke_result = panic::catch_unwind({
-                let scf = &f;
-                // The event was deserialized from a byte stream and *should not* affect the
-                // outer environment had a panic happens, but we cannot prevent crazy
-                // implementater for `convert::FromReader` where they somehow introduce
-                // `!UnwindSafe` types. Implementers are warned in the documentation for
-                // `convert::FromReader` so for ergonomics we assert unwind-safety for
-                // event
-                let event = panic::AssertUnwindSafe(event);
-                move || scf.call(event.0, context)
-            })
-            .map_err(|_| panic_guard.get_panic());
-            invoke_result
-        };
-        match invoke_result {
-            // The execution succeeded
-            Ok(Ok(response)) => Ok(response),
-            Ok(Err(err)) => {
-                // There are errors during the execution
-                Err(format!("function failed with error: {}", err))
-            }
-            Err(message) => {
-                // panic, now extract panic message from buffer
-                Err(message)
-            }
-        }
-    }
-
-    /// Invoke a scf without panic catching
-    fn invoke_uncatched<Event, Response, Error, ConvertEventError, ConvertResponseError, Function>(
-        &self,
-        f: &Function,
-        event: Event,
-        context: Context,
-    ) -> Result<Response, String>
+    ) -> Result<Result<Response, String>, String>
     where
         Function: ServerlessComputeFunction<Event = Event, Response = Response, Error = Error>,
         Event: convert::FromReader<Error = ConvertEventError>,
@@ -603,10 +579,6 @@ impl Runtime {
             // end of this block
             let panic_guard = helper::PanicGuard::new();
             let invoke_result = panic::catch_unwind({
-                // We maintain the variant that `f` here is in a consistent state.
-                // We achieve this by panicking the runtime if the execution of the function
-                // panics, hence every time this function properly exits, `f` must be in a
-                // consistent state
                 let scf = panic::AssertUnwindSafe(&f);
                 // The event was deserialized from a byte stream and *should not* affect the
                 // outer environment had a panic happens, but we cannot prevent crazy
@@ -620,19 +592,7 @@ impl Runtime {
             .map_err(|_| panic_guard.get_panic());
             invoke_result
         };
-        match invoke_result {
-            // The execution succeeded
-            Ok(Ok(response)) => Ok(response),
-            Ok(Err(err)) => {
-                // There are errors during the execution
-                Err(format!("function failed with error: {}", err))
-            }
-            Err(message) => {
-                // panic, forward the panic to the upstream cloud and then panic
-                self.send_error_message(&message);
-                panic!(message);
-            }
-        }
+        invoke_result.map(|r| r.map_err(|err| format!("function failed with error: {}", err)))
     }
 
     /// Send the execution result to the upstream cloud
