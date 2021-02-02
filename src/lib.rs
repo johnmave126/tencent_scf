@@ -11,8 +11,10 @@
 //! * [`start`] catches panic from the provided serverless compute function, but this requires the
 //! function to be [`RefUnwindSafe`]. Most pure function should satisfy this.
 //! * [`start_uncatched`] allows the serverless compute function to panic the whole process and relies on
-//! the cloud to tear down the executor and restart. Sometimes this is necessary to reference
-//! `!RefUnwindSafe` types. Connection pool, for example, usually is not unwind-safe.
+//! the cloud to tear down the executor and restart. The downside of this is when a query causes
+//! panic on the function, the cloud typically waits until timeout before acknowledging the
+//! failure. Sometimes this is necessary to reference `!RefUnwindSafe` types. Connection pool,
+//! for example, usually is not unwind-safe.
 //!
 //! # Built-in Events
 //! When enabling the correspondent `builtin-*` feature, auto serialization and deserialization of
