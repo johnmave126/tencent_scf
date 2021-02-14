@@ -47,6 +47,8 @@ builtin-common = ["json", "serde/derive"]
 # enables auto serialize/deserialize of events and response
 json = ["serde", "serde_json", "tencent_scf_derive"]
 
+[workspace]
+members = ["examples/*", "derive"]
 
 [package.metadata.docs.rs]
 all-features = true
