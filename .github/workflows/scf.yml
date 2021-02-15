@@ -32,22 +32,22 @@ jobs:
           key: build-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build workspace with no feature
-	uses: actions-rs/cargo@v1
-	with:
+        uses: actions-rs/cargo@v1
+        with:
           use-cross: true
           command: build
           args: --workspace --release --target x86_64-unknown-linux-musl --no-default-features
 
       - name: Build workspace with default features
-	uses: actions-rs/cargo@v1
-	with:
+        uses: actions-rs/cargo@v1
+        with:
           use-cross: true
           command: build
           args: --workspace --release --target x86_64-unknown-linux-musl
 
       - name: Build workspace with all features
-	uses: actions-rs/cargo@v1
-	with:
+        uses: actions-rs/cargo@v1
+        with:
           use-cross: true
           command: build
           args: --workspace --release --target x86_64-unknown-linux-musl --all-features
