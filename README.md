@@ -42,7 +42,6 @@ The deployment is almost the same as [Deploy AWS Lambda]. User should try to fol
     7. Click "Finish".
 
 ## Roadmap
-- Add a GitHub Workflow for auto testing.
 - Add more examples.
 - Add more tests.
 - Add more built-in events and responses.
