@@ -33,7 +33,8 @@
 //! above.
 //! * Multi-valued header is not supported in **request** due to a limitation in the
 //! format used by the upstream cloud protocol.
-//! * Currently we only support `Request<T>/Response<T>` where `T` is `String` or `Vec<u8>`.
+//! * Currently we only support `Request<T>/Response<T>` where `T` is `String`, `Vec<u8>`, or
+//! `serde::de::DeserializedOwn/serde::Serialize + AsJson`.
 //! * For `Request<String>/Response<String>`, we assume the body is a utf-8 string and we don't do
 //! any processing. For `Request<Vec<u8>>/Response<Vec<u8>>` however, we assume user wants a binary
 //! format, so we will assume that the incoming request is base64 encoded (as required by the
@@ -112,6 +113,46 @@
 //! # }
 //! ```
 //!
+//! Here is another example using auto serialization/deserialization of types marked as [`AsJson`]
+//! ```no_run
+//! # #[cfg(feature = "builtin-api-gateway")]
+//! # {
+//! use std::convert::Infallible;
+//!
+//! use serde::{Deserialize, Serialize};
+//! use tencent_scf::{
+//!     builtin::api::{Request, Response, ResponseBuilder},
+//!     convert::AsJson,
+//!     make_scf, start, Context,
+//! };
+//!
+//! #[derive(Deserialize, AsJson)]
+//! struct MyEvent {
+//!     name: String,
+//!     width: usize,
+//!     height: usize,
+//! }
+//!
+//! #[derive(Serialize, AsJson)]
+//! struct MyResponse {
+//!     area: usize,
+//! }
+//!
+//! let scf = make_scf(
+//!     |req: Request<MyEvent>, _context: Context| -> Result<Response<MyResponse>, Infallible> {
+//!         let event = req.body();
+//!         Ok(ResponseBuilder::new()
+//!             .status(200)
+//!             .body(MyResponse {
+//!                 area: event.width * event.height,
+//!             })
+//!             .unwrap())
+//!     },
+//! );
+//! start(scf);
+//! # }
+//! ```
+//!
 //! [API Gateway Trigger Overview]: https://cloud.tencent.com/document/product/583/12513
 
 use std::{
@@ -133,7 +174,7 @@ use http::{
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
-use crate::convert::{FromReader, IntoBytes};
+use crate::convert::{AsJson, FromReader, IntoBytes};
 
 /// Used for any key-value dict
 type Dict = HashMap<String, String>;
@@ -362,8 +403,10 @@ pub struct WebResponse {
 #[doc(hidden)]
 #[derive(Debug, thiserror::Error)]
 pub enum RequestParseError {
-    #[error("{0}")]
+    #[error("fail to deserialize event: {0}")]
     DeserializeError(#[from] serde_json::Error),
+    #[error("fail to deserialize request body: {0}")]
+    DeserializeBodyError(serde_json::Error),
     #[error("fail to assemble request struct: {0}")]
     AssembleError(#[from] http::Error),
     #[error("invalid header name for '{0}' in the request")]
@@ -375,23 +418,37 @@ pub enum RequestParseError {
 }
 
 #[doc(hidden)]
-impl TryInto<Request<String>> for Event {
+impl TryFrom<Event> for Request<String> {
     type Error = RequestParseError;
 
-    fn try_into(self) -> Result<Request<String>, Self::Error> {
-        let (req, body) = self.into_request_builder()?;
+    fn try_from(value: Event) -> Result<Self, Self::Error> {
+        let (req, body) = value.into_request_builder()?;
         Ok(req.body(body)?)
     }
 }
 
 #[doc(hidden)]
-impl TryInto<Request<Vec<u8>>> for Event {
+impl TryFrom<Event> for Request<Vec<u8>> {
     type Error = RequestParseError;
 
-    fn try_into(self) -> Result<Request<Vec<u8>>, Self::Error> {
-        let (req, body) = self.into_request_builder()?;
+    fn try_from(value: Event) -> Result<Self, Self::Error> {
+        let (req, body) = value.into_request_builder()?;
         let bytes = base64::decode(body.as_str())?;
         Ok(req.body(bytes)?)
+    }
+}
+
+#[doc(hidden)]
+impl<T> TryFrom<Event> for Request<T>
+where
+    T: serde::de::DeserializeOwned + AsJson,
+{
+    type Error = RequestParseError;
+
+    fn try_from(value: Event) -> Result<Self, Self::Error> {
+        let (req, body) = value.into_request_builder()?;
+        let body = serde_json::from_str(&body).map_err(RequestParseError::DeserializeBodyError)?;
+        Ok(req.body(body)?)
     }
 }
 
@@ -404,6 +461,8 @@ impl TryInto<Request<Vec<u8>>> for Event {
 /// * `Request<String>`: The body will be treated as a utf-8 string.
 /// * `Request<Vec<u8>>`: The request body will be assumed as a base64-encoded string. The runtime
 /// will decode it to `Vec<u8>`
+/// * `Request<T>` where `T` is `DeserializeOwned` and marked as [`AsJson`]. The runtime will
+/// deserialize the body automatically.
 impl<T> FromReader for Request<T>
 where
     Event: TryInto<Request<T>, Error = RequestParseError>,
@@ -420,8 +479,10 @@ where
 #[doc(hidden)]
 #[derive(Debug, thiserror::Error)]
 pub enum ResponseEncodeError {
-    #[error("{0}")]
+    #[error("fail to serialize response object: {0}")]
     SerializeError(#[from] serde_json::Error),
+    #[error("fail to serialize response body: {0}")]
+    SerializeBodyError(serde_json::Error),
     #[error("invalid header value for '{0}' in the response")]
     InvalidHeaderValue(String),
 }
@@ -503,12 +564,32 @@ impl TryFrom<Response<Vec<u8>>> for WebResponse {
     }
 }
 
+#[doc(hidden)]
+impl<T> TryFrom<Response<T>> for WebResponse
+where
+    T: serde::Serialize + AsJson,
+{
+    type Error = ResponseEncodeError;
+
+    fn try_from(response: Response<T>) -> Result<Self, Self::Error> {
+        let (status, headers, body) = break_response(response)?;
+        Ok(Self {
+            base64: false,
+            status,
+            headers,
+            body: serde_json::to_string(&body).map_err(ResponseEncodeError::SerializeBodyError)?,
+        })
+    }
+}
+
 /// Enable auto serialization for `Response` types
 ///
 /// Currently only two types of payload is supported
 /// * `Response<String>`: The body will be treated as a utf-8 string.
 /// * `Response<Vec<u8>>`: The body will be assumed to be binary format. The runtime will perform a
 /// base64 encoding to send it to the upstream cloud.
+/// * `Response<T>` where `T` is `Serialize` and marked as [`AsJson`]. The runtime will
+/// serialize the object to json automatically.
 impl<T> IntoBytes for Response<T>
 where
     Response<T>: TryInto<WebResponse, Error = ResponseEncodeError>,
