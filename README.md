@@ -2,6 +2,7 @@
 [![crate][crate-image]][crate-link]
 [![Docs][docs-image]][docs-link]
 ![Apache2/MIT licensed][license-image]
+[![Build Status][build-image]][build-link]
 
 > :warning: **DISCLAIMER**: The author is **NOT** affiliated with Tencent and the project is **NOT** endorsed or sponsored by Tencent. This project was developed solely out of personal use.
 
@@ -63,6 +64,8 @@ at your option.
 [docs-image]: https://docs.rs/tencent_scf/badge.svg
 [docs-link]: https://docs.rs/tencent_scf/
 [license-image]: https://img.shields.io/badge/license-Apache2.0/MIT-blue.svg
+[build-image]: https://github.com/johnmave126/tencent_scf/actions/workflows/scf.yml/badge.svg?branch=master&event=push
+[build-link]: https://github.com/johnmave126/tencent_scf/actions/workflows/scf.yml?query=branch:master
 
 [lambda_runtime]: https://crates.io/crates/lambda_runtime
 [Deploy AWS Lambda]: https://aws.amazon.com/blogs/opensource/rust-runtime-for-aws-lambda/
