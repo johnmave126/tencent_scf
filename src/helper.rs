@@ -95,7 +95,10 @@ impl Drop for PanicGuard {
 mod test {
     use std::panic::catch_unwind;
 
+    use serial_test::serial;
+
     #[test]
+    #[serial(helper)]
     fn panic_message_redirect() {
         let guard = super::PanicGuard::new();
         let _ = catch_unwind(|| {
@@ -105,6 +108,7 @@ mod test {
     }
 
     #[test]
+    #[serial(helper)]
     fn panic_hook_restore() {
         let outer_guard = super::PanicGuard::new();
         {

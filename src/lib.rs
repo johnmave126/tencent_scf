@@ -60,6 +60,8 @@
 //!
 //! ### Example
 //! ```no_run
+//! # #[cfg(feature = "json")]
+//! # {
 //! use std::convert::Infallible;
 //!
 //! use serde::{Deserialize, Serialize};
@@ -95,6 +97,7 @@
 //! );
 //! // start the runtime in the main function
 //! start(scf);
+//! # }
 //! ```
 //! ## Manual Serialization/Deserialization
 //! User can also chose to implement [`convert::FromReader`] for incoming events and
@@ -392,6 +395,8 @@ where
 /// # Example
 /// Here is an example where the function must be started without panic catching:
 /// ```no_run
+/// # #[cfg(feature = "builtin-api-gateway")]
+/// # {
 /// use tencent_scf::{make_scf, start_uncatched, Context};
 /// use ureq::AgentBuilder;
 ///
@@ -412,6 +417,7 @@ where
 /// start_uncatched(scf);
 /// // this doesn't compile
 /// // tencent_scf::start(scf);
+/// # }
 /// ```
 pub fn start_uncatched<Event, Response, Error, ConvertEventError, ConvertResponseError, Function>(
     f: Function,
