@@ -33,13 +33,14 @@
 //! above.
 //! * Multi-valued header is not supported in **request** due to a limitation in the
 //! format used by the upstream cloud protocol.
-//! * Currently we only support `Request<T>/Response<T>` where `T` is `String`, `Vec<u8>`, or
+//! * Currently we only support `Request<T>/Response<T>` where `T` is `String`, `Vec<u8>`, `()`, or
 //! `serde::de::DeserializedOwn/serde::Serialize + AsJson`.
 //! * For `Request<String>/Response<String>`, we assume the body is a utf-8 string and we don't do
 //! any processing. For `Request<Vec<u8>>/Response<Vec<u8>>` however, we assume user wants a binary
 //! format, so we will assume that the incoming request is base64 encoded (as required by the
 //! cloud), and the runtime will try to decode the incoming event. We will also base64 encode the
-//! response before sending it out as well (as required by the cloud).
+//! response before sending it out as well (as required by the cloud). For
+//! `Request<()>/Response<()>`, payload will be ignored.
 //!
 //! # Example
 //! Here is an example of a very primitive reverse proxy:
@@ -439,6 +440,16 @@ impl TryFrom<Event> for Request<Vec<u8>> {
 }
 
 #[doc(hidden)]
+impl TryFrom<Event> for Request<()> {
+    type Error = RequestParseError;
+
+    fn try_from(value: Event) -> Result<Self, Self::Error> {
+        let (req, _body) = value.into_request_builder()?;
+        Ok(req.body(())?)
+    }
+}
+
+#[doc(hidden)]
 impl<T> TryFrom<Event> for Request<T>
 where
     T: serde::de::DeserializeOwned + AsJson,
@@ -560,6 +571,21 @@ impl TryFrom<Response<Vec<u8>>> for WebResponse {
             status,
             headers,
             body: base64::encode(&body),
+        })
+    }
+}
+
+#[doc(hidden)]
+impl TryFrom<Response<()>> for WebResponse {
+    type Error = ResponseEncodeError;
+
+    fn try_from(response: Response<()>) -> Result<Self, Self::Error> {
+        let (status, headers, _body) = break_response(response)?;
+        Ok(Self {
+            base64: false,
+            status,
+            headers,
+            body: String::new(),
         })
     }
 }

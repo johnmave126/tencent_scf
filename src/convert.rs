@@ -198,6 +198,15 @@ impl FromReader for String {
     }
 }
 
+/// Auto deserialization into a unit, ignores any payload
+impl FromReader for () {
+    type Error = Infallible;
+
+    fn from_reader<Reader: Read + Send>(_reader: Reader) -> Result<Self, Self::Error> {
+        Ok(())
+    }
+}
+
 /// Trait for converting response into raw bytes.
 ///
 /// Custom response should implement this trait so that runtime can send raw bytes to the upstream
@@ -256,5 +265,14 @@ impl IntoBytes for String {
 
     fn into_bytes(self) -> Result<Vec<u8>, Self::Error> {
         Ok(String::into_bytes(self))
+    }
+}
+
+/// Auto serilization for unit.
+impl IntoBytes for () {
+    type Error = Infallible;
+
+    fn into_bytes(self) -> Result<Vec<u8>, Self::Error> {
+        Ok(Vec::new())
     }
 }
