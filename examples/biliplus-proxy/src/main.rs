@@ -65,20 +65,14 @@ fn main() {
                 .fold(forward_req, |req, (key, value)| req.query(key, value));
 
             // Send request
-            let resp = forward_req
-                .set("Host", HOST)
-                .set("Accept-Encoding", "identity")
-                .call()?;
+            let resp = forward_req.set("Host", HOST).call()?;
             // Build response
             let forward_resp = ResponseBuilder::new().status(resp.status());
             // Set headers
             let forward_resp = resp
                 .headers_names()
                 .into_iter()
-                .filter(|header| match &header[..] {
-                    "connection" | "transfer-encoding" => false,
-                    _ => true,
-                })
+                .filter(|header| !matches!(&header[..], "connection" | "transfer-encoding"))
                 .fold(forward_resp, |forward_resp, header| {
                     // Try to convert header to a HeaderName
                     if let Ok(header_name) = HeaderName::from_str(&header) {

@@ -73,12 +73,10 @@ impl PanicGuard {
 
     /// Get the panic message of this guard. This function *never* panics.
     pub(crate) fn get_panic(&self) -> String {
-        self.message
-            .lock()
-            .map(|message| message.clone())
-            .unwrap_or_else(|_| {
-                "function panicked, but unable to retrieve further information".to_string()
-            })
+        self.message.lock().map_or_else(
+            |_| "function panicked, but unable to retrieve further information".to_string(),
+            |message| message.clone(),
+        )
     }
 }
 

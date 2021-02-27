@@ -518,7 +518,7 @@ impl Runtime {
             // Fetch next event
             if let Some((event, context)) = self.next() {
                 // The response is well-formed
-                let result = result_handler(&self, self.invoke(&f, event, context));
+                let result = result_handler(&self, Self::invoke(&f, event, context));
                 // Send the result to the cloud
                 self.send_result(result);
             }
@@ -566,7 +566,6 @@ impl Runtime {
     /// receives a `!RefUnwindSafe` function, it should panic the runtime if panic is detected to
     /// avoid `f` being used again.
     fn invoke<Event, Response, Error, ConvertEventError, ConvertResponseError, Function>(
-        &self,
         f: &Function,
         event: Event,
         context: Context,

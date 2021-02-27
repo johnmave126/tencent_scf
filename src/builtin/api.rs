@@ -353,7 +353,7 @@ impl Event {
             .uri(&self.path);
         // Set headers
         if let Some(headers) = req.headers_mut() {
-            for (header, value) in self.headers.iter() {
+            for (header, value) in &self.headers {
                 let header = HeaderName::from_bytes(header.as_bytes())
                     .map_err(|_| RequestParseError::InvalidHeaderName(header.clone()))?;
                 let value = HeaderValue::from_str(value).map_err(|_| {
@@ -509,36 +509,31 @@ fn break_response<T>(
         // It is guaranteed here that the header part is not None
         // see `http::header::HeaderMap::drain`
         let header = header.unwrap();
-        match header_iter.peek() {
-            Some(&(None, _)) => {
-                // Consume all the following item with `None` header
-                let values = std::iter::once(value)
-                    .chain(
-                        header_iter
-                            .peeking_take_while(|(header, _)| header.is_none())
-                            .map(|(_, value)| value),
-                    )
-                    .map(|value| {
-                        Ok(value
-                            .to_str()
-                            .map_err(|_| {
-                                ResponseEncodeError::InvalidHeaderValue(header.to_string())
-                            })?
-                            .to_string())
-                    })
-                    .collect::<Result<Vec<String>, ResponseEncodeError>>()?;
-                headers.insert(header.to_string(), WebResponseHeaderValue::Multi(values));
-            }
-            _ => {
-                // Single valued header
-                let value = WebResponseHeaderValue::Single(
-                    value
+        if let Some(&(None, _)) = header_iter.peek() {
+            // Consume all the following item with `None` header
+            let values = std::iter::once(value)
+                .chain(
+                    header_iter
+                        .peeking_take_while(|(header, _)| header.is_none())
+                        .map(|(_, value)| value),
+                )
+                .map(|value| {
+                    Ok(value
                         .to_str()
                         .map_err(|_| ResponseEncodeError::InvalidHeaderValue(header.to_string()))?
-                        .to_string(),
-                );
-                headers.insert(header.to_string(), value);
-            }
+                        .to_string())
+                })
+                .collect::<Result<Vec<String>, ResponseEncodeError>>()?;
+            headers.insert(header.to_string(), WebResponseHeaderValue::Multi(values));
+        } else {
+            // Single valued header
+            let value = WebResponseHeaderValue::Single(
+                value
+                    .to_str()
+                    .map_err(|_| ResponseEncodeError::InvalidHeaderValue(header.to_string()))?
+                    .to_string(),
+            );
+            headers.insert(header.to_string(), value);
         }
     }
 
