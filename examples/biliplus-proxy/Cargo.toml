@@ -11,5 +11,5 @@ path = "src/main.rs"
 
 [dependencies]
 ureq = "2.1.0"
-tencent_scf = { version = "0.2.0", features = ["builtin-api-gateway"], path = "../../" }
+tencent_scf = { version = "0.3.0", features = ["builtin-api-gateway"], path = "../../" }
 thiserror = "1.0.24"
