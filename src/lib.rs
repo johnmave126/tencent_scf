@@ -129,7 +129,7 @@ use ureq::{Agent, AgentBuilder, Response};
 /// [Built-in Environment Variables]: https://cloud.tencent.com/document/product/583/30228#.E5.B7.B2.E5.86.85.E7.BD.AE.E7.8E.AF.E5.A2.83.E5.8F.98.E9.87.8F
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Context {
+pub struct Context<'env> {
     /// from header `memory_limit_in_mb`
     pub memory_limit_in_mb: usize,
     /// from header `time_limit_in_ms`
@@ -137,46 +137,50 @@ pub struct Context {
     /// from header `request_id`
     pub request_id: String,
     /// from enviroment variables `SCF_FUNCTIONNAME`
-    pub function_name: String,
+    pub function_name: Option<&'env str>,
     /// from enviroment variable `SCF_FUNCTIONVERSION`
-    pub function_version: String,
+    pub function_version: Option<&'env str>,
     /// from enviroment variable `TENCENTCLOUD_REGION`
-    pub region: String,
+    pub region: Option<&'env str>,
     /// from enviroment variable `TENCENTCLOUD_APPID`
-    pub appid: String,
+    pub appid: Option<&'env str>,
     /// from enviroment variable `TENCENTCLOUD_UIN`
-    pub uin: String,
+    pub uin: Option<&'env str>,
 }
 
-impl Context {
+impl<'env> Context<'env> {
     /// Creates a context from values from header and from enviroment (via `env_context`).
     fn new(
         memory_limit_in_mb: usize,
         time_limit_in_ms: usize,
         request_id: String,
-        env_context: &EnvContext,
+        env_context: &'env EnvContext,
     ) -> Self {
         Self {
             memory_limit_in_mb,
             time_limit_in_ms,
             request_id,
-            function_name: env_context.function_name.clone(),
-            function_version: env_context.function_version.clone(),
-            region: env_context.region.clone(),
-            appid: env_context.appid.clone(),
-            uin: env_context.uin.clone(),
+            function_name: env_context.function_name.as_deref(),
+            function_version: env_context.function_version.as_deref(),
+            region: env_context.region.as_deref(),
+            appid: env_context.appid.as_deref(),
+            uin: env_context.uin.as_deref(),
         }
     }
 }
 
 /// A subset of [`Context`] where the values are pulled from the environment variables
+///
+/// # Remarks
+/// Due to a bug of HK region cloud server, there might be cases where certain environment
+/// variables don't exist although the documentation promises they should.
 #[derive(Debug, Clone)]
 struct EnvContext {
-    function_name: String,
-    function_version: String,
-    region: String,
-    appid: String,
-    uin: String,
+    function_name: Option<String>,
+    function_version: Option<String>,
+    region: Option<String>,
+    appid: Option<String>,
+    uin: Option<String>,
 }
 
 impl EnvContext {
@@ -188,11 +192,11 @@ impl EnvContext {
     /// [Built-in Environment Variables]: https://cloud.tencent.com/document/product/583/30228#.E5.B7.B2.E5.86.85.E7.BD.AE.E7.8E.AF.E5.A2.83.E5.8F.98.E9.87.8F
     fn load() -> Self {
         Self {
-            function_name: env::var("SCF_FUNCTIONNAME").unwrap(),
-            function_version: env::var("SCF_FUNCTIONVERSION").unwrap(),
-            region: env::var("TENCENTCLOUD_REGION").unwrap(),
-            appid: env::var("TENCENTCLOUD_APPID").unwrap(),
-            uin: env::var("TENCENTCLOUD_UIN").unwrap(),
+            function_name: env::var("SCF_FUNCTIONNAME").ok(),
+            function_version: env::var("SCF_FUNCTIONVERSION").ok(),
+            region: env::var("TENCENTCLOUD_REGION").ok(),
+            appid: env::var("TENCENTCLOUD_APPID").ok(),
+            uin: env::var("TENCENTCLOUD_UIN").ok(),
         }
     }
 }
