@@ -136,8 +136,6 @@ pub struct Context {
     pub time_limit_in_ms: usize,
     /// from header `request_id`
     pub request_id: String,
-    /// from enviroment variable `SCF_NAMESPACE`
-    pub namespace: String,
     /// from enviroment variables `SCF_FUNCTIONNAME`
     pub function_name: String,
     /// from enviroment variable `SCF_FUNCTIONVERSION`
@@ -162,7 +160,6 @@ impl Context {
             memory_limit_in_mb,
             time_limit_in_ms,
             request_id,
-            namespace: env_context.namespace.clone(),
             function_name: env_context.function_name.clone(),
             function_version: env_context.function_version.clone(),
             region: env_context.region.clone(),
@@ -175,7 +172,6 @@ impl Context {
 /// A subset of [`Context`] where the values are pulled from the environment variables
 #[derive(Debug, Clone)]
 struct EnvContext {
-    namespace: String,
     function_name: String,
     function_version: String,
     region: String,
@@ -192,7 +188,6 @@ impl EnvContext {
     /// [Built-in Environment Variables]: https://cloud.tencent.com/document/product/583/30228#.E5.B7.B2.E5.86.85.E7.BD.AE.E7.8E.AF.E5.A2.83.E5.8F.98.E9.87.8F
     fn load() -> Self {
         Self {
-            namespace: env::var("SCF_NAMESPACE").unwrap(),
             function_name: env::var("SCF_FUNCTIONNAME").unwrap(),
             function_version: env::var("SCF_FUNCTIONVERSION").unwrap(),
             region: env::var("TENCENTCLOUD_REGION").unwrap(),
