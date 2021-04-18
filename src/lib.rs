@@ -428,7 +428,7 @@ pub fn start_uncatched<Event, Response, Error, ConvertEventError, ConvertRespons
         result.unwrap_or_else(|panic_message| {
             // The execution panicked, we can no longer continue
             rt.send_error_message(&panic_message);
-            panic!(panic_message)
+            panic!("{}", panic_message)
         })
     });
 }
